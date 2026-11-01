@@ -29,7 +29,9 @@ use s3::{
 };
 
 use crate::connectors::create_test_messages;
-use crate::connectors::fixtures::{S3SinkFixture, S3SinkOps, S3SinkRotationFixture};
+use crate::connectors::fixtures::{
+    S3SinkFixture, S3SinkOps, S3SinkParquetFixture, S3SinkRotationFixture,
+};
 
 const API_KEY: &str = "test-api-key";
 const S3_SINK_KEY: &str = "s3";
@@ -229,4 +231,87 @@ async fn s3_sink_rotates_on_message_count(harness: &TestHarness, fixture: S3Sink
             "All keys must contain partition_id"
         );
     }
+}
+
+#[iggy_harness(
+    server(connectors_runtime(config_path = "tests/connectors/s3/sink.toml")),
+    seed = seeds::connector_stream
+)]
+async fn s3_sink_writes_parquet_with_correct_layout(
+    harness: &TestHarness,
+    fixture: S3SinkParquetFixture,
+) {
+    let client = harness.root_client().await.unwrap();
+    let stream_id: Identifier = seeds::names::STREAM.try_into().unwrap();
+    let topic_id: Identifier = seeds::names::TOPIC.try_into().unwrap();
+
+    let message_count = 5;
+    let test_messages = create_test_messages(message_count);
+    let payloads: Vec<Bytes> = test_messages
+        .iter()
+        .map(|m| Bytes::from(serde_json::to_vec(m).expect("serialize")))
+        .collect();
+
+    let mut messages: Vec<IggyMessage> = payloads
+        .iter()
+        .enumerate()
+        .map(|(i, p)| {
+            IggyMessage::builder()
+                .id((i + 1) as u128)
+                .payload(p.clone())
+                .build()
+                .expect("build message")
+        })
+        .collect();
+
+    client
+        .send_messages(
+            &stream_id,
+            &topic_id,
+            &Partitioning::partition_id(0),
+            &mut messages,
+        )
+        .await
+        .expect("send messages");
+
+    let prefix = format!("{}/", seeds::names::STREAM);
+    let keys = fixture
+        .wait_for_objects(&prefix, 1)
+        .await
+        .expect("wait for S3 objects");
+
+    assert!(!keys.is_empty(), "Expected at least one S3 object");
+
+    let key = &keys[0];
+    assert!(
+        key.contains(seeds::names::STREAM),
+        "Key must contain stream name: {key}"
+    );
+    assert!(
+        key.contains(seeds::names::TOPIC),
+        "Key must contain topic name: {key}"
+    );
+    assert!(
+        key.ends_with(".parquet"),
+        "Key must end with .parquet: {key}"
+    );
+    assert!(
+        key.contains("/00000-"),
+        "Key must contain partition_id (00000): {key}"
+    );
+
+    let data = fixture.get_object(key).await.expect("get S3 object");
+    assert!(!data.is_empty(), "Parquet file must not be empty");
+
+    let reader_builder =
+        parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder::try_new(Bytes::from(data))
+            .expect("build parquet reader");
+    let mut reader = reader_builder.build().expect("build batch reader");
+    let batch = reader.next().expect("batch exists").expect("read batch");
+
+    assert_eq!(
+        batch.num_rows(),
+        message_count,
+        "Expected {message_count} rows in Parquet output"
+    );
 }

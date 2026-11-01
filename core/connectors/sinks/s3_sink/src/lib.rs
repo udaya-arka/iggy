@@ -146,6 +146,7 @@ pub(crate) enum OutputFormat {
     JsonLines,
     JsonArray,
     Raw,
+    Parquet,
 }
 
 impl TryFrom<&str> for OutputFormat {
@@ -156,8 +157,9 @@ impl TryFrom<&str> for OutputFormat {
             "json_lines" | "jsonl" | "jsonlines" => Ok(OutputFormat::JsonLines),
             "json_array" => Ok(OutputFormat::JsonArray),
             "raw" => Ok(OutputFormat::Raw),
+            "parquet" => Ok(OutputFormat::Parquet),
             other => Err(Error::InvalidConfigValue(format!(
-                "Unknown output format: '{other}'. Expected: json_lines, json_array, or raw"
+                "Unknown output format: '{other}'. Expected: json_lines, json_array, raw, or parquet"
             ))),
         }
     }
@@ -169,6 +171,7 @@ impl OutputFormat {
             OutputFormat::JsonLines => "jsonl",
             OutputFormat::JsonArray => "json",
             OutputFormat::Raw => "bin",
+            OutputFormat::Parquet => "parquet",
         }
     }
 }
@@ -386,6 +389,18 @@ mod tests {
     }
 
     #[test]
+    fn output_format_parquet() {
+        assert_eq!(
+            OutputFormat::try_from("parquet").unwrap(),
+            OutputFormat::Parquet
+        );
+        assert_eq!(
+            OutputFormat::try_from("PARQUET").unwrap(),
+            OutputFormat::Parquet
+        );
+    }
+
+    #[test]
     fn output_format_invalid() {
         assert!(OutputFormat::try_from("xml").is_err());
     }
@@ -395,6 +410,7 @@ mod tests {
         assert_eq!(OutputFormat::JsonLines.file_extension(), "jsonl");
         assert_eq!(OutputFormat::JsonArray.file_extension(), "json");
         assert_eq!(OutputFormat::Raw.file_extension(), "bin");
+        assert_eq!(OutputFormat::Parquet.file_extension(), "parquet");
     }
 
     #[test]

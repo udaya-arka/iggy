@@ -40,6 +40,7 @@ pub mod api;
 pub mod convert;
 pub mod decoders;
 pub mod encoders;
+pub mod formatters;
 pub mod log;
 pub mod retry;
 pub mod sink;

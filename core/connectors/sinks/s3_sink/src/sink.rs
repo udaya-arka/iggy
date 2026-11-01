@@ -316,7 +316,7 @@ impl S3Sink {
         let first_offset = buffer.first_offset();
         let last_offset = buffer.last_offset();
 
-        let data = formatter::finalize_buffer(buffer, resolved.output_format);
+        let data = formatter::finalize_buffer(buffer, resolved.output_format)?;
         buffer.reset();
 
         Ok(FlushPayload {
@@ -1264,6 +1264,39 @@ mod tests {
 
         let payload = sink.extract_flush_payload(&key, &mut buffer).unwrap();
         assert_eq!(payload.data, b"[{\"a\":1},{\"b\":2}]");
+    }
+
+    #[test]
+    fn flush_payload_data_is_parquet() {
+        let config = S3SinkConfig {
+            output_format: "parquet".to_string(),
+            ..test_config()
+        };
+        let mut sink = S3Sink::new(1, config);
+        sink.validate_and_parse_config().unwrap();
+
+        let key = BufferKey {
+            stream: "s".to_string(),
+            topic: "t".to_string(),
+            partition_id: 0,
+        };
+
+        let mut buffer = FileBuffer::new();
+        buffer.append(b"{\"a\":1}", 0, 1_000_000);
+        buffer.append(b"{\"a\":2}", 1, 2_000_000);
+
+        let payload = sink.extract_flush_payload(&key, &mut buffer).unwrap();
+        assert!(payload.s3_key.ends_with(".parquet"));
+        assert!(!payload.data.is_empty());
+
+        let reader_builder =
+            parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder::try_new(
+                bytes::Bytes::from(payload.data),
+            )
+            .unwrap();
+        let mut reader = reader_builder.build().unwrap();
+        let batch = reader.next().unwrap().unwrap();
+        assert_eq!(batch.num_rows(), 2);
     }
 
     #[test]

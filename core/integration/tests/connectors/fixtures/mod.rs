@@ -111,7 +111,7 @@ pub use redshift::{
     RedshiftSinkFixture, RedshiftSinkJsonFixture, RedshiftSinkNoArchiveFixture,
     RedshiftSinkVarbyteFixture,
 };
-pub use s3::{S3SinkFixture, S3SinkOps, S3SinkRotationFixture};
+pub use s3::{S3SinkFixture, S3SinkOps, S3SinkParquetFixture, S3SinkRotationFixture};
 pub use surrealdb::{
     SurrealDbOps, SurrealDbSinkBatchFixture, SurrealDbSinkDatabaseFixture, SurrealDbSinkFixture,
     SurrealDbSinkJsonFixture, SurrealDbSinkNamespaceFixture, SurrealDbSinkRawFixture,

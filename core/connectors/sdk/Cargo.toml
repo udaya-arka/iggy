@@ -35,10 +35,13 @@ ignored = ["prost"]
 [features]
 default = []
 api = ["strum"]
+parquet = ["dep:parquet", "dep:arrow", "dep:arrow-json"]
 
 [dependencies]
 anyhow = { workspace = true }
 apache-avro = { workspace = true }
+arrow = { workspace = true, optional = true }
+arrow-json = { workspace = true, optional = true }
 async-trait = { workspace = true }
 base64 = { workspace = true }
 dashmap = { workspace = true }
@@ -47,6 +50,7 @@ http = { workspace = true }
 humantime = { workspace = true }
 iggy = { workspace = true }
 iggy_common = { workspace = true }
+parquet = { workspace = true, optional = true }
 postcard = { workspace = true }
 prost = { workspace = true }
 prost-types = { workspace = true }
@@ -69,6 +73,7 @@ tracing-subscriber = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]
+bytes = { workspace = true }
 # `test-util` is not part of `full`; the retry tests need its paused time.
 tokio = { workspace = true, features = ["full", "test-util"] }
 wiremock = { workspace = true }

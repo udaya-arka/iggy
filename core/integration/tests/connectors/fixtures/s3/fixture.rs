@@ -43,6 +43,7 @@ const ENV_SINK_PLUGIN_SECRET_KEY: &str = "IGGY_CONNECTORS_SINK_S3_PLUGIN_CONFIG_
 const ENV_SINK_PLUGIN_FILE_ROTATION: &str = "IGGY_CONNECTORS_SINK_S3_PLUGIN_CONFIG_FILE_ROTATION";
 const ENV_SINK_PLUGIN_MAX_MESSAGES: &str =
     "IGGY_CONNECTORS_SINK_S3_PLUGIN_CONFIG_MAX_MESSAGES_PER_FILE";
+const ENV_SINK_PLUGIN_OUTPUT_FORMAT: &str = "IGGY_CONNECTORS_SINK_S3_PLUGIN_CONFIG_OUTPUT_FORMAT";
 
 const DEFAULT_MAX_MESSAGES_PER_FILE: usize = 5;
 const POLL_ATTEMPTS: usize = 30;
@@ -220,6 +221,37 @@ impl TestFixture for S3SinkRotationFixture {
             "messages".to_string(),
         );
         envs.insert(ENV_SINK_PLUGIN_MAX_MESSAGES.to_string(), "10".to_string());
+        envs
+    }
+}
+
+pub struct S3SinkParquetFixture {
+    inner: S3SinkFixture,
+}
+
+impl S3SinkOps for S3SinkParquetFixture {
+    fn bucket(&self) -> &Bucket {
+        self.inner.bucket()
+    }
+
+    fn endpoint(&self) -> &str {
+        self.inner.endpoint()
+    }
+}
+
+#[async_trait]
+impl TestFixture for S3SinkParquetFixture {
+    async fn setup() -> Result<Self, TestBinaryError> {
+        let inner = S3SinkFixture::setup().await?;
+        Ok(Self { inner })
+    }
+
+    fn connectors_runtime_envs(&self) -> HashMap<String, String> {
+        let mut envs = self.inner.connectors_runtime_envs();
+        envs.insert(
+            ENV_SINK_PLUGIN_OUTPUT_FORMAT.to_string(),
+            "parquet".to_string(),
+        );
         envs
     }
 }

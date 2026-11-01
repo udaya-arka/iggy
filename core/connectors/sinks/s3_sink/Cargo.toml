@@ -46,7 +46,7 @@ chrono = { workspace = true }
 dashmap = { workspace = true }
 humantime = { workspace = true }
 iggy_common = { workspace = true }
-iggy_connector_sdk = { workspace = true }
+iggy_connector_sdk = { workspace = true, features = ["parquet"] }
 rust-s3 = { workspace = true }
 secrecy = { workspace = true }
 serde = { workspace = true }
@@ -55,6 +55,8 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+bytes = { workspace = true }
+parquet = { workspace = true }
 simd-json = { workspace = true }
 wiremock = { workspace = true }
 

@@ -17,4 +17,4 @@
 
 mod fixture;
 
-pub use fixture::{S3SinkFixture, S3SinkOps, S3SinkRotationFixture};
+pub use fixture::{S3SinkFixture, S3SinkOps, S3SinkParquetFixture, S3SinkRotationFixture};

@@ -50,13 +50,15 @@ pub(crate) fn format_message(
     format: OutputFormat,
 ) -> Result<Vec<u8>, Error> {
     match format {
-        OutputFormat::JsonLines | OutputFormat::JsonArray => format_json_message(
-            message,
-            topic_metadata,
-            messages_metadata,
-            include_metadata,
-            include_headers,
-        ),
+        OutputFormat::JsonLines | OutputFormat::JsonArray | OutputFormat::Parquet => {
+            format_json_message(
+                message,
+                topic_metadata,
+                messages_metadata,
+                include_metadata,
+                include_headers,
+            )
+        }
         OutputFormat::Raw => format_raw_message(message),
     }
 }
@@ -193,7 +195,10 @@ fn timestamp_to_rfc3339(micros: u64) -> String {
 }
 
 /// Finalize buffer entries into the output byte format.
-pub(crate) fn finalize_buffer(buffer: &mut FileBuffer, format: OutputFormat) -> Vec<u8> {
+pub(crate) fn finalize_buffer(
+    buffer: &mut FileBuffer,
+    format: OutputFormat,
+) -> Result<Vec<u8>, Error> {
     match format {
         OutputFormat::JsonLines => {
             let mut result =
@@ -202,9 +207,9 @@ pub(crate) fn finalize_buffer(buffer: &mut FileBuffer, format: OutputFormat) -> 
                 result.extend_from_slice(entry);
                 result.push(b'\n');
             }
-            result
+            Ok(result)
         }
-        OutputFormat::Raw => buffer.take_data(),
+        OutputFormat::Raw => Ok(buffer.take_data()),
         OutputFormat::JsonArray => {
             let separators = (buffer.message_count() as usize).saturating_sub(1);
             let mut result = Vec::with_capacity(buffer.byte_len() + separators + b"[]".len());
@@ -218,15 +223,22 @@ pub(crate) fn finalize_buffer(buffer: &mut FileBuffer, format: OutputFormat) -> 
                 first = false;
             }
             result.push(b']');
-            result
+            Ok(result)
         }
+        OutputFormat::Parquet => iggy_connector_sdk::formatters::parquet::json_entries_to_parquet(
+            buffer.entries(),
+            None,
+            None,
+        ),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bytes::Bytes;
     use iggy_connector_sdk::Schema;
+    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
     use std::collections::BTreeMap;
 
     fn make_json_payload(json_str: &str) -> Payload {
@@ -402,7 +414,7 @@ mod tests {
         let data = b"{\"a\":1}{\"b\":2}";
         let boundaries = [7usize, 14];
         let mut buffer = buffer_from_boundaries(data, &boundaries);
-        let result = finalize_buffer(&mut buffer, OutputFormat::JsonLines);
+        let result = finalize_buffer(&mut buffer, OutputFormat::JsonLines).unwrap();
         assert_eq!(result, b"{\"a\":1}\n{\"b\":2}\n");
     }
 
@@ -412,7 +424,7 @@ mod tests {
         let boundaries = [4usize, 6];
         let mut buffer = buffer_from_boundaries(data, &boundaries);
         let original_allocation = buffer.entries().next().unwrap().as_ptr();
-        let result = finalize_buffer(&mut buffer, OutputFormat::Raw);
+        let result = finalize_buffer(&mut buffer, OutputFormat::Raw).unwrap();
         assert_eq!(
             result.as_ptr(),
             original_allocation,
@@ -429,8 +441,22 @@ mod tests {
         let data = b"{\"a\":1}{\"b\":2}";
         let boundaries = [7usize, 14];
         let mut buffer = buffer_from_boundaries(data, &boundaries);
-        let result = finalize_buffer(&mut buffer, OutputFormat::JsonArray);
+        let result = finalize_buffer(&mut buffer, OutputFormat::JsonArray).unwrap();
         assert_eq!(result, b"[{\"a\":1},{\"b\":2}]");
+    }
+
+    #[test]
+    fn finalize_parquet() {
+        let data = b"{\"a\":1}{\"a\":2}";
+        let boundaries = [7usize, 14];
+        let mut buffer = buffer_from_boundaries(data, &boundaries);
+        let result = finalize_buffer(&mut buffer, OutputFormat::Parquet).unwrap();
+        assert!(!result.is_empty());
+
+        let reader_builder = ParquetRecordBatchReaderBuilder::try_new(Bytes::from(result)).unwrap();
+        let mut reader = reader_builder.build().unwrap();
+        let batch = reader.next().unwrap().unwrap();
+        assert_eq!(batch.num_rows(), 2);
     }
 
     #[test]

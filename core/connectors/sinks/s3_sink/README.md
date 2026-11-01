@@ -70,7 +70,7 @@ retry_delay = "1s"
 | `file_rotation` | String | `size` | Rotation strategy: `size` or `messages` |
 | `max_file_size` | String | `8MiB` | Size rotation threshold, positive and at most `5GiB`; validated in both modes |
 | `max_messages_per_file` | Integer | `None` | Positive count required in `messages` mode; ignored by size rotation |
-| `output_format` | String | `json_lines` | Output format: `json_lines`, `json_array`, or `raw` |
+| `output_format` | String | `json_lines` | Output format: `json_lines`, `json_array`, `raw`, or `parquet` |
 | `include_metadata` | Boolean | `true` | Include stream/topic/partition/offset/timestamp in JSON output |
 | `include_headers` | Boolean | `false` | Include available headers in JSON output, independently of metadata |
 | `max_attempts` | Integer | `3` | Outer upload attempts; `0` and `1` both allow one (alias: `max_retries`) |
@@ -132,6 +132,8 @@ Both JSON formats wrap the payload under `payload`, including when metadata is d
 Metadata timestamps use UTC second precision; IDs, checksums and origin timestamps are omitted. Headers are independent of metadata: strings remain strings, raw values become base64, booleans remain booleans, supported numeric values become JSON numbers, and other values use strings.
 
 Raw output concatenates payload bytes without delimiters and ignores both inclusion flags. Use `schema = "raw"` without payload-changing transforms to preserve original bytes; JSON decoding followed by raw output can reserialize the payload.
+
+Parquet output (`output_format = "parquet"`) batches buffered records and serializes them into columnar Apache Parquet format using ZSTD compression. The Parquet schema is dynamically inferred from the records, supporting structured querying with analytics engines like DuckDB, Amazon Athena, and Apache Spark. Files use the `.parquet` extension.
 
 ## S3-Compatible Stores
 
